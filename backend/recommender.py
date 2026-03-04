@@ -1,33 +1,41 @@
-import faiss
-import pickle
-import numpy as np
-import os
 from sentence_transformers import SentenceTransformer
+import pandas as pd
+import faiss
+import numpy as np
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+model = None
+index = None
+data = None
 
-INDEX_PATH = os.path.join(BASE_DIR, "models", "faiss_index.index")
-META_PATH = os.path.join(BASE_DIR, "models", "metadata.pkl")
+def load_resources():
+    global model, index, data
 
-model = SentenceTransformer("all-MiniLM-L6-v2")
+    if model is None:
+        print("Loading model...")
+        model = SentenceTransformer("all-MiniLM-L6-v2")
 
-index = faiss.read_index(INDEX_PATH)
+    if data is None:
+        data = pd.read_csv("data/shl_assessments.csv")
 
-with open(META_PATH, "rb") as f:
-    df = pickle.load(f)
+    if index is None:
+        embeddings = np.load("data/embeddings.npy")
+        dimension = embeddings.shape[1]
+        index = faiss.IndexFlatL2(dimension)
+        index.add(embeddings)
 
 
 def recommend(query, top_k=10):
+    load_resources()
+
     query_embedding = model.encode([query])
-    distances, indices = index.search(np.array(query_embedding), top_k)
+    distances, indices = index.search(query_embedding, top_k)
 
     results = []
-
     for idx in indices[0]:
-        row = df.iloc[idx]
+        row = data.iloc[idx]
         results.append({
-            "name": row["name"],
-            "url": row["url"],
+            "title": row["title"],
+            "url": row["url"]
         })
 
     return results
